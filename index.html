@@ -86,13 +86,13 @@
             opacity: 1;
         }
 
-        /* 点滅アニメーション */
+        /* 車速ドットのみに適用する点滅アニメーション */
         @keyframes blink {
             0% { opacity: 1; }
             50% { opacity: 0.1; }
             100% { opacity: 1; }
         }
-        .blink {
+        .dot.blink {
             animation: blink 0.6s infinite;
         }
 
@@ -447,7 +447,7 @@
 
         // --- 表示・判定メインロジック ---
         function updateDisplay() {
-            // 1. 車速による色 (より白に近い明るいグレー #bbbbbb) & 点滅の判定
+            // 1. 車速による色 & 点滅判定
             let speedColor = '#bbbbbb';
             let isBlink = false;
             let overSpeed = currentSpeed - limitSpeed;
@@ -466,7 +466,7 @@
                 isBlink = true;
             }
 
-            // 2. 前走車距離によるドットの基本サイズ（高さ・幅）
+            // 2. 前走車距離によるドットの基本サイズ
             let dotSize = 10;
             if (currentDist <= 10) {
                 dotSize = 22;
@@ -497,16 +497,20 @@
                 const isLimitDot = (index === limitLeftIndex || index === limitRightIndex);
                 const isSpeedDot = (index >= speedStart && index < speedEnd);
 
+                // 一旦点滅クラスをリセット
+                dot.classList.remove('blink');
+
                 if (isLimitDot) {
-                    // ★最優先：制限速度の白い点（被った場合もこちらを優先表示）
+                    // ★最優先：制限速度の白い点（絶対に点滅させず常時点灯）
                     dot.classList.add('active');
                     dot.style.backgroundColor = '#ffffff';
                     dot.style.boxShadow = '0 0 10px #ffffff';
                     dot.style.width = `${dotSize}px`;
                     dot.style.height = `${dotSize}px`;
                 } else if (isSpeedDot) {
-                    // 現在車速ライン上のドット点灯（白寄りのグレー/警告色）
+                    // 現在車速ライン上のドット点灯
                     dot.classList.add('active');
+                    if (isBlink) dot.classList.add('blink'); // 警告時のみ車速ドットに blink 付与
                     dot.style.backgroundColor = speedColor;
                     dot.style.boxShadow = `0 0 8px ${speedColor}`;
                     dot.style.width = `${dotSize}px`;
@@ -519,13 +523,6 @@
                     dot.style.height = '10px';
                 }
             });
-
-            // 点滅処理
-            if (isBlink) {
-                dotWrapper.classList.add('blink');
-            } else {
-                dotWrapper.classList.remove('blink');
-            }
         }
 
         // --- AIカメラモード ---
