@@ -40,7 +40,6 @@
             overflow-x: hidden;
         }
 
-        /* 背面カメラ映像用 */
         #camera-preview {
             display: none;
             position: fixed;
@@ -50,7 +49,6 @@
             opacity: 0.25;
         }
 
-        /* 1. 最上部：ドットライン表示エリア */
         .line-container {
             width: 100%;
             height: 80px;
@@ -62,7 +60,6 @@
             margin-top: 10px;
         }
 
-        /* 40個のドットを並べるコンテナ */
         .dot-line-wrapper {
             display: flex;
             justify-content: space-between;
@@ -72,28 +69,22 @@
             z-index: 2;
         }
 
-        /* 個々のドットスタイル */
         .dot {
             width: 10px;
             height: 10px;
             border-radius: 50%;
-            opacity: 0; /* デフォルトは非表示（消灯） */
-            /* transitionからopacityを完全に除外し、瞬時に切り替わるように設定 */
+            opacity: 0;
             transition: background-color 0.15s, transform 0.15s, box-shadow 0.15s, width 0.2s, height 0.2s;
         }
 
-        /* 点灯状態のドット */
         .dot.active {
             opacity: 1;
         }
 
-        /* ★JSによって追加される全体点滅ステータス時の処理 */
-        /* bodyに.blink-stateが付与された時、警告対象のドット(.warning-dot)だけを暗くする */
         body.blink-state .dot.warning-dot {
             opacity: 0.1 !important;
         }
 
-        /* 画面右下のギアマークボタン（常に表示） */
         .settings-btn {
             position: fixed;
             bottom: 20px;
@@ -118,7 +109,6 @@
             background: rgba(255, 255, 255, 0.3);
         }
 
-        /* 設定モーダル（ポップアップ） */
         .modal-overlay {
             display: none;
             position: fixed;
@@ -168,6 +158,11 @@
             display: flex;
             flex-direction: column;
             gap: 4px;
+            padding-bottom: 4px;
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.1);
+        }
+        .control-group:last-child {
+            border-bottom: none;
         }
         .control-row {
             display: flex;
@@ -210,24 +205,30 @@
 </head>
 <body>
 
-    <!-- 背面カメラ映像 -->
     <video id="camera-preview" autoplay playsinline></video>
 
-    <!-- 1. 最上部：ドット車速メーター -->
     <div class="line-container">
-        <!-- 40個のドット配置枠 -->
         <div class="dot-line-wrapper" id="dot-wrapper"></div>
     </div>
 
-    <!-- 右下のギアマーク設定ボタン（常に表示） -->
     <div class="settings-btn" id="btn-settings" onclick="openModal()">⚙</div>
 
-    <!-- 設定モーダルDialog -->
     <div class="modal-overlay" id="modal-overlay">
         <div class="control-panel">
             <div class="modal-header">
                 <span>設定</span>
                 <button class="close-btn" onclick="closeModal()">✕</button>
+            </div>
+
+            <!-- 音声ガイド -->
+            <div class="control-group">
+                <div class="control-row">
+                    <span>音声ガイド</span>
+                    <div class="mode-buttons">
+                        <button id="btn-voice-off" class="mode-btn active" onclick="setVoiceMode('off')">OFF</button>
+                        <button id="btn-voice-on" class="mode-btn" onclick="setVoiceMode('on')">ON</button>
+                    </div>
+                </div>
             </div>
 
             <!-- 制限速度 -->
@@ -269,20 +270,15 @@
     </div>
 
     <script>
-        // 読み込み時に自動で1px下へスクロールし、アドレスバーの自動格納を促す
         window.addEventListener('load', () => {
-            setTimeout(() => {
-                window.scrollTo(0, 1);
-            }, 100);
+            setTimeout(() => { window.scrollTo(0, 1); }, 100);
         });
 
-        // ★ 全体同期用の点滅タイマー ★
-        // 1.5回/秒 = 1サイクル約667ms。そのため半分の333msごとに状態を反転させます。
         setInterval(() => {
             document.body.classList.toggle('blink-state');
         }, 333);
 
-        const TOTAL_DOTS = 40; // ドットの総数
+        const TOTAL_DOTS = 40;
 
         let limitSpeed = 60;
         let currentSpeed = 0;
@@ -291,6 +287,10 @@
         let limitMode = 'auto';
         let speedMode = 'gps';
         let distMode = 'manual';
+        
+        // --- 音声ガイド用変数 ---
+        let voiceMode = 'off';
+        let hasSpokenIntro = false;
 
         let cameraInterval = null;
         let lastLat = null;
@@ -299,10 +299,8 @@
 
         const dotWrapper = document.getElementById('dot-wrapper');
         const videoElement = document.getElementById('camera-preview');
-        const settingsBtn = document.getElementById('btn-settings');
         const modalOverlay = document.getElementById('modal-overlay');
 
-        // 40個のドットDOM要素を動的生成
         const dots = [];
         for (let i = 0; i < TOTAL_DOTS; i++) {
             const dot = document.createElement('div');
@@ -311,24 +309,55 @@
             dots.push(dot);
         }
 
-        // モーダル開閉
-        function openModal() { modalOverlay.classList.add('open'); }
-        function closeModal() { modalOverlay.classList.remove('open'); }
-
-        // 車速(km/h)から幅の割合(%)を計算する関数
-        function calculateWidthPercent(speed) {
-            if (speed <= 10) {
-                return 10;
-            } else if (speed <= 120) {
-                return 10 + ((speed - 10) / (120 - 10)) * (75 - 10);
-            } else if (speed <= 200) {
-                return 75 + ((speed - 120) / (200 - 120)) * (100 - 75);
-            } else {
-                return 100;
+        // --- 音声読み上げ共通関数 ---
+        function speakText(text) {
+            if (voiceMode !== 'on') return;
+            if ('speechSynthesis' in window) {
+                // 読み上げ中の音声をキャンセルして最新の情報を優先
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'ja-JP';
+                utterance.rate = 1.1; // 少し早めのテンポ
+                window.speechSynthesis.speak(utterance);
             }
         }
 
-        // --- 値の更新ハンドラー ---
+        function openModal() { 
+            modalOverlay.classList.add('open'); 
+        }
+
+        // モーダルを閉じた時の処理（初回起動の音声アナウンス）
+        function closeModal() { 
+            modalOverlay.classList.remove('open'); 
+            
+            if (voiceMode === 'on' && !hasSpokenIntro) {
+                speakText("音声ガイドを開始します。このメーターは、現在のスピードと制限速度をドットでお知らせします。制限速度を超えるとドットが点滅して警告します。");
+                hasSpokenIntro = true;
+            }
+        }
+
+        function calculateWidthPercent(speed) {
+            if (speed <= 10) return 10;
+            else if (speed <= 120) return 10 + ((speed - 10) / (120 - 10)) * (75 - 10);
+            else if (speed <= 200) return 75 + ((speed - 120) / (200 - 120)) * (100 - 75);
+            else return 100;
+        }
+
+        // --- 各種設定・モード切替 ---
+        
+        function setVoiceMode(mode) {
+            voiceMode = mode;
+            document.getElementById('btn-voice-off').classList.toggle('active', mode === 'off');
+            document.getElementById('btn-voice-on').classList.toggle('active', mode === 'on');
+            
+            // iPhone等の制限回避：ONにしたボタンタップの瞬間に無音を流してAPIをアンロックする
+            if (mode === 'on' && 'speechSynthesis' in window) {
+                let silent = new SpeechSynthesisUtterance('');
+                silent.volume = 0;
+                window.speechSynthesis.speak(silent);
+            }
+        }
+
         function changeLimit(val) {
             if (limitMode === 'manual') {
                 limitSpeed = parseInt(val);
@@ -358,7 +387,6 @@
             document.getElementById('val-dist').innerText = distText;
         }
 
-        // --- モード切替 ---
         function setLimitMode(mode) {
             limitMode = mode;
             document.getElementById('btn-manual-limit').classList.toggle('active', mode === 'manual');
@@ -392,7 +420,7 @@
             else stopCamera();
         }
 
-        // --- 制限速度自動取得 (Overpass API - 5秒周期) ---
+        // --- 制限速度自動取得 (Overpass API) ---
         async function fetchSpeedLimit(lat, lon) {
             const now = Date.now();
             if (now - lastFetchTime < 5000) return;
@@ -411,11 +439,19 @@
                             if (spdStr) {
                                 let newLimit = parseInt(spdStr);
                                 if (newLimit > 0) {
-                                    limitSpeed = newLimit;
-                                    document.getElementById('val-limit').innerText = limitSpeed;
-                                    document.getElementById('range-limit').value = limitSpeed;
-                                    if (limitMode === 'auto') document.getElementById('limit-source').innerText = '(自動取得)';
-                                    updateDisplay();
+                                    // 取得した速度が現在の制限速度と違う場合のみ更新して読み上げる
+                                    if (limitSpeed !== newLimit) {
+                                        limitSpeed = newLimit;
+                                        document.getElementById('val-limit').innerText = limitSpeed;
+                                        document.getElementById('range-limit').value = limitSpeed;
+                                        
+                                        // 制限速度が変更された時の音声案内
+                                        if (limitMode === 'auto') {
+                                            document.getElementById('limit-source').innerText = '(自動取得)';
+                                            speakText(`制限速度が、${limitSpeed}キロに変更になりました。`);
+                                        }
+                                        updateDisplay();
+                                    }
                                     break;
                                 }
                             }
@@ -448,78 +484,63 @@
             }
         }
 
-        // --- 表示・判定メインロジック ---
+        // --- 表示更新処理 ---
         function updateDisplay() {
-            // 1. 車速による色 & 点滅判定
             let speedColor = '#bbbbbb';
             let isBlink = false;
             let overSpeed = currentSpeed - limitSpeed;
 
             if (currentSpeed === 0) {
-                // 停止時は緑色
                 speedColor = '#00ff66';
             } else if (overSpeed >= 30) {
-                speedColor = '#ff3333'; // 赤
+                speedColor = '#ff3333';
                 isBlink = true;
             } else if (overSpeed >= 10) {
-                speedColor = '#ff9900'; // オレンジ
+                speedColor = '#ff9900';
                 isBlink = true;
             } else if (overSpeed > 0) {
-                speedColor = '#bbbbbb'; // 白に近いグレー
+                speedColor = '#bbbbbb';
                 isBlink = true;
             }
 
-            // 2. 前走車距離によるドットの基本サイズ
             let dotSize = 10;
-            if (currentDist <= 10) {
-                dotSize = 22;
-            } else if (currentDist <= 30) {
-                dotSize = 16;
-            } else if (currentDist <= 50) {
-                dotSize = 12;
-            }
+            if (currentDist <= 10) dotSize = 22;
+            else if (currentDist <= 30) dotSize = 16;
+            else if (currentDist <= 50) dotSize = 12;
 
-            // 3. 自車速ドット範囲の計算
             let speedPercent = calculateWidthPercent(currentSpeed);
             let activeDotCount = Math.round((speedPercent / 100) * TOTAL_DOTS);
-
             let halfActive = activeDotCount / 2;
             let centerIndex = TOTAL_DOTS / 2;
             let speedStart = Math.floor(centerIndex - halfActive);
             let speedEnd = Math.ceil(centerIndex + halfActive);
 
-            // 4. 制限速度ドット（目盛り位置）の計算
             let limitPercent = calculateWidthPercent(limitSpeed);
             let limitDotCount = Math.round((limitPercent / 100) * TOTAL_DOTS);
             let halfLimit = limitDotCount / 2;
             let limitLeftIndex = Math.max(0, Math.floor(centerIndex - halfLimit));
             let limitRightIndex = Math.min(TOTAL_DOTS - 1, Math.ceil(centerIndex + halfLimit) - 1);
 
-            // ドットの描画更新
             dots.forEach((dot, index) => {
                 const isLimitDot = (index === limitLeftIndex || index === limitRightIndex);
                 const isSpeedDot = (index >= speedStart && index < speedEnd);
 
-                // 点滅対象クラスのリセット
                 dot.classList.remove('warning-dot');
 
                 if (isLimitDot) {
-                    // ★ 制限速度の白い点は絶対に warning-dot クラスを付けず、常時点灯させる
                     dot.classList.add('active');
                     dot.style.backgroundColor = '#ffffff';
                     dot.style.boxShadow = '0 0 10px #ffffff';
                     dot.style.width = `${dotSize}px`;
                     dot.style.height = `${dotSize}px`;
                 } else if (isSpeedDot) {
-                    // 現在車速ライン上のドット点灯
                     dot.classList.add('active');
-                    if (isBlink) dot.classList.add('warning-dot'); // ここで点滅対象としてマーク
+                    if (isBlink) dot.classList.add('warning-dot');
                     dot.style.backgroundColor = speedColor;
                     dot.style.boxShadow = `0 0 8px ${speedColor}`;
                     dot.style.width = `${dotSize}px`;
                     dot.style.height = `${dotSize}px`;
                 } else {
-                    // 完全消灯（非表示）
                     dot.classList.remove('active');
                     dot.style.boxShadow = 'none';
                     dot.style.width = '10px';
@@ -546,7 +567,6 @@
                         updateDisplay();
                     }
                 }, 200);
-
             } catch (err) {
                 alert('カメラのアクセスを許可してください: ' + err.message);
                 setDistMode('manual');
@@ -563,7 +583,6 @@
             videoElement.style.display = 'none';
         }
 
-        // 初期化実行
         initGPS();
         updateDisplay();
     </script>
