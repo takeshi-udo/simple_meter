@@ -78,7 +78,8 @@
             height: 10px;
             border-radius: 50%;
             opacity: 0; /* デフォルトは非表示（消灯） */
-            transition: background-color 0.15s, opacity 0.15s, transform 0.15s, box-shadow 0.15s, width 0.2s, height 0.2s;
+            /* opacityのtransitionを除外して点滅の波打ち（波状ラグ）を解消 */
+            transition: background-color 0.15s, transform 0.15s, box-shadow 0.15s, width 0.2s, height 0.2s;
         }
 
         /* 点灯状態のドット */
@@ -86,14 +87,13 @@
             opacity: 1;
         }
 
-        /* 車速ドットのみに適用する点滅アニメーション */
+        /* 車速ドットのみに適用する点滅アニメーション (1.5回/秒 = 0.667s周期) */
         @keyframes blink {
-            0% { opacity: 1; }
+            0%, 100% { opacity: 1; }
             50% { opacity: 0.1; }
-            100% { opacity: 1; }
         }
         .dot.blink {
-            animation: blink 0.6s infinite;
+            animation: blink 0.667s infinite steps(1, start);
         }
 
         /* 画面右下のギアマークボタン（常に表示） */
