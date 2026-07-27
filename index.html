@@ -74,8 +74,8 @@
 
         /* 個々のドットスタイル */
         .dot {
-            width: 8px;
-            height: 8px;
+            width: 10px;
+            height: 10px;
             border-radius: 50%;
             opacity: 0; /* デフォルトは非表示（消灯） */
             transition: background-color 0.15s, opacity 0.15s, transform 0.15s, box-shadow 0.15s, width 0.2s, height 0.2s;
@@ -447,8 +447,8 @@
 
         // --- 表示・判定メインロジック ---
         function updateDisplay() {
-            // 1. 車速による色 (現在車速はコントラストを落としたグレー) & 点滅の判定
-            let speedColor = '#888888'; // 基本は少し暗めのグレー
+            // 1. 車速による色 (より白に近い明るいグレー #bbbbbb) & 点滅の判定
+            let speedColor = '#bbbbbb';
             let isBlink = false;
             let overSpeed = currentSpeed - limitSpeed;
 
@@ -462,12 +462,12 @@
                 speedColor = '#ff9900'; // オレンジ
                 isBlink = true;
             } else if (overSpeed > 0) {
-                speedColor = '#888888'; // グレー
+                speedColor = '#bbbbbb'; // 白に近いグレー
                 isBlink = true;
             }
 
-            // 2. 前走車距離によるドットの大きさ（太さ）
-            let dotSize = 8;
+            // 2. 前走車距離によるドットの基本サイズ（高さ・幅）
+            let dotSize = 10;
             if (currentDist <= 10) {
                 dotSize = 22;
             } else if (currentDist <= 30) {
@@ -497,26 +497,26 @@
                 const isLimitDot = (index === limitLeftIndex || index === limitRightIndex);
                 const isSpeedDot = (index >= speedStart && index < speedEnd);
 
-                if (isSpeedDot) {
-                    // 現在車速ライン上のドット点灯（グレー/警告色）
+                if (isLimitDot) {
+                    // ★最優先：制限速度の白い点（被った場合もこちらを優先表示）
+                    dot.classList.add('active');
+                    dot.style.backgroundColor = '#ffffff';
+                    dot.style.boxShadow = '0 0 10px #ffffff';
+                    dot.style.width = `${dotSize}px`;
+                    dot.style.height = `${dotSize}px`;
+                } else if (isSpeedDot) {
+                    // 現在車速ライン上のドット点灯（白寄りのグレー/警告色）
                     dot.classList.add('active');
                     dot.style.backgroundColor = speedColor;
                     dot.style.boxShadow = `0 0 8px ${speedColor}`;
                     dot.style.width = `${dotSize}px`;
                     dot.style.height = `${dotSize}px`;
-                } else if (isLimitDot) {
-                    // 制限速度位置のドット（白い点 #ffffff）
-                    dot.classList.add('active');
-                    dot.style.backgroundColor = '#ffffff';
-                    dot.style.boxShadow = '0 0 10px #ffffff';
-                    dot.style.width = '10px';
-                    dot.style.height = '10px';
                 } else {
-                    // それ以外のドットは完全消灯（表示しない）
+                    // それ以外のドットは完全消灯（非表示）
                     dot.classList.remove('active');
                     dot.style.boxShadow = 'none';
-                    dot.style.width = '8px';
-                    dot.style.height = '8px';
+                    dot.style.width = '10px';
+                    dot.style.height = '10px';
                 }
             });
 
