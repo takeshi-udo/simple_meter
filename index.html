@@ -28,7 +28,6 @@
         body {
             background-color: #000;
             color: #fff;
-            /* ブラウザのヘッダーをスクロールで隠すため、高さを100vhより少し大きく設定 */
             min-height: calc(100vh + 60px);
             width: 100vw;
             display: flex;
@@ -36,7 +35,7 @@
             justify-content: space-between;
             align-items: center;
             font-family: sans-serif;
-            padding: 10px 20px 80px 20px; /* 下部にスクロール用の余白を設定 */
+            padding: 10px 20px 80px 20px;
             position: relative;
             overflow-x: hidden;
         }
@@ -87,30 +86,6 @@
             background-color: #fff;
             box-shadow: 0 0 10px currentColor;
         }
-
-        /* 制限速度目盛り枠 */
-        .limit-ticks-wrapper {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            height: 36px;
-            pointer-events: none;
-            z-index: 3;
-            transition: width 0.1s linear;
-        }
-
-        .limit-tick {
-            position: absolute;
-            top: 0;
-            width: 3px;
-            height: 100%;
-            background-color: rgba(255, 255, 255, 0.9);
-            border-radius: 1.5px;
-            box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
-        }
-        .limit-tick.left { left: 0; }
-        .limit-tick.right { right: 0; }
 
         /* 点滅アニメーション */
         @keyframes blink {
@@ -246,12 +221,6 @@
     <div class="line-container">
         <!-- 40個のドット配置枠 -->
         <div class="dot-line-wrapper" id="dot-wrapper"></div>
-        
-        <!-- 制限速度目盛り枠 -->
-        <div class="limit-ticks-wrapper" id="ticks-wrapper">
-            <div class="limit-tick left"></div>
-            <div class="limit-tick right"></div>
-        </div>
     </div>
 
     <!-- 右下のギアマーク設定ボタン（常に表示） -->
@@ -327,7 +296,6 @@
         let lastFetchTime = 0;
 
         const dotWrapper = document.getElementById('dot-wrapper');
-        const ticksWrapper = document.getElementById('ticks-wrapper');
         const videoElement = document.getElementById('camera-preview');
         const settingsBtn = document.getElementById('btn-settings');
         const modalOverlay = document.getElementById('modal-overlay');
@@ -480,7 +448,7 @@
 
         // --- 表示・判定メインロジック ---
         function updateDisplay() {
-            // 1. 色 & 点滅の判定
+            // 1. 車速による色 & 点滅の判定
             let color = '#ffffff';
             let isBlink = false;
             let overSpeed = currentSpeed - limitSpeed;
@@ -509,23 +477,43 @@
                 dotSize = 12;
             }
 
-            // 3. 自車速に応じた点灯ドット数の計算
+            // 3. 自車速ドット範囲の計算
             let speedPercent = calculateWidthPercent(currentSpeed);
             let activeDotCount = Math.round((speedPercent / 100) * TOTAL_DOTS);
 
             let halfActive = activeDotCount / 2;
             let centerIndex = TOTAL_DOTS / 2;
-            let startIndex = Math.floor(centerIndex - halfActive);
-            let endIndex = Math.ceil(centerIndex + halfActive);
+            let speedStart = Math.floor(centerIndex - halfActive);
+            let speedEnd = Math.ceil(centerIndex + halfActive);
 
+            // 4. 制限速度ドット（目盛り位置）の計算（両端のLEDインデックス）
+            let limitPercent = calculateWidthPercent(limitSpeed);
+            let limitDotCount = Math.round((limitPercent / 100) * TOTAL_DOTS);
+            let halfLimit = limitDotCount / 2;
+            let limitLeftIndex = Math.max(0, Math.floor(centerIndex - halfLimit));
+            let limitRightIndex = Math.min(TOTAL_DOTS - 1, Math.ceil(centerIndex + halfLimit) - 1);
+
+            // ドットの描画更新
             dots.forEach((dot, index) => {
-                if (index >= startIndex && index < endIndex) {
+                const isLimitDot = (index === limitLeftIndex || index === limitRightIndex);
+                const isSpeedDot = (index >= speedStart && index < speedEnd);
+
+                if (isSpeedDot) {
+                    // 車速範囲内のドット点灯
                     dot.classList.add('active');
                     dot.style.backgroundColor = color;
                     dot.style.color = color;
                     dot.style.width = `${dotSize}px`;
                     dot.style.height = `${dotSize}px`;
+                } else if (isLimitDot) {
+                    // 車速範囲外かつ制限速度位置のドット（黄色 #ffcc00 で点灯）
+                    dot.classList.add('active');
+                    dot.style.backgroundColor = '#ffcc00';
+                    dot.style.color = '#ffcc00';
+                    dot.style.width = '10px';
+                    dot.style.height = '10px';
                 } else {
+                    // 非点灯ドット
                     dot.classList.remove('active');
                     dot.style.backgroundColor = 'rgba(255, 255, 255, 0.15)';
                     dot.style.width = '8px';
@@ -533,10 +521,7 @@
                 }
             });
 
-            // 4. 制限速度目盛り幅の設定
-            let limitTicksWidth = calculateWidthPercent(limitSpeed);
-            ticksWrapper.style.width = `${limitTicksWidth}%`;
-
+            // 点滅処理
             if (isBlink) {
                 dotWrapper.classList.add('blink');
             } else {
