@@ -77,14 +77,13 @@
             width: 8px;
             height: 8px;
             border-radius: 50%;
-            background-color: rgba(255, 255, 255, 0.15); /* 非点灯時のグレー */
-            transition: background-color 0.15s, transform 0.15s, box-shadow 0.15s, width 0.2s, height 0.2s;
+            opacity: 0; /* デフォルトは非表示（消灯） */
+            transition: background-color 0.15s, opacity 0.15s, transform 0.15s, box-shadow 0.15s, width 0.2s, height 0.2s;
         }
 
         /* 点灯状態のドット */
         .dot.active {
-            background-color: #fff;
-            box-shadow: 0 0 10px currentColor;
+            opacity: 1;
         }
 
         /* 点滅アニメーション */
@@ -207,7 +206,7 @@
             font-size: 13px;
         }
         .limit-val {
-            color: #ffcc00;
+            color: #ffffff;
             font-weight: bold;
         }
     </style>
@@ -448,22 +447,22 @@
 
         // --- 表示・判定メインロジック ---
         function updateDisplay() {
-            // 1. 車速による色 & 点滅の判定
-            let color = '#ffffff';
+            // 1. 車速による色 (現在車速はコントラストを落としたグレー) & 点滅の判定
+            let speedColor = '#888888'; // 基本は少し暗めのグレー
             let isBlink = false;
             let overSpeed = currentSpeed - limitSpeed;
 
             if (currentSpeed === 0) {
                 // 停止時は緑色 (#00ff66)
-                color = '#00ff66';
+                speedColor = '#00ff66';
             } else if (overSpeed >= 30) {
-                color = '#ff3333'; // 赤
+                speedColor = '#ff3333'; // 赤
                 isBlink = true;
             } else if (overSpeed >= 10) {
-                color = '#ff9900'; // オレンジ
+                speedColor = '#ff9900'; // オレンジ
                 isBlink = true;
             } else if (overSpeed > 0) {
-                color = '#ffffff'; // 白
+                speedColor = '#888888'; // グレー
                 isBlink = true;
             }
 
@@ -499,23 +498,23 @@
                 const isSpeedDot = (index >= speedStart && index < speedEnd);
 
                 if (isSpeedDot) {
-                    // 車速範囲内のドット点灯
+                    // 現在車速ライン上のドット点灯（グレー/警告色）
                     dot.classList.add('active');
-                    dot.style.backgroundColor = color;
-                    dot.style.color = color;
+                    dot.style.backgroundColor = speedColor;
+                    dot.style.boxShadow = `0 0 8px ${speedColor}`;
                     dot.style.width = `${dotSize}px`;
                     dot.style.height = `${dotSize}px`;
                 } else if (isLimitDot) {
-                    // 車速範囲外かつ制限速度位置のドット（黄色 #ffcc00 で点灯）
+                    // 制限速度位置のドット（白い点 #ffffff）
                     dot.classList.add('active');
-                    dot.style.backgroundColor = '#ffcc00';
-                    dot.style.color = '#ffcc00';
+                    dot.style.backgroundColor = '#ffffff';
+                    dot.style.boxShadow = '0 0 10px #ffffff';
                     dot.style.width = '10px';
                     dot.style.height = '10px';
                 } else {
-                    // 非点灯ドット
+                    // それ以外のドットは完全消灯（表示しない）
                     dot.classList.remove('active');
-                    dot.style.backgroundColor = 'rgba(255, 255, 255, 0.15)';
+                    dot.style.boxShadow = 'none';
                     dot.style.width = '8px';
                     dot.style.height = '8px';
                 }
