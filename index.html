@@ -276,7 +276,7 @@
 
         setInterval(() => {
             document.body.classList.toggle('blink-state');
-        }, 333);
+        }, 500);
 
         const TOTAL_DOTS = 40;
 
@@ -331,7 +331,7 @@
             modalOverlay.classList.remove('open'); 
             
             if (voiceMode === 'on' && !hasSpokenIntro) {
-                speakText("音声ガイドを開始します。このメーターは、現在のスピードと制限速度をドットでお知らせします。制限速度を超えるとドットが点滅して警告します。");
+                speakText("音声ガイドを開始します。このメーターは、現在のスピードと制限速度をドットでお知らせします。制限速度を超えるとドットが点滅してお知らせします。");
                 hasSpokenIntro = true;
             }
         }
